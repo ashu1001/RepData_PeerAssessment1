@@ -1,0 +1,160 @@
+---
+title: "Reproducible Research Project 1"
+author: "Ashutosh Singh"
+date: "2/20/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+This project makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+### Loading Required Packages
+```{r message=FALSE,warning=FALSE}
+library(dplyr)
+library(ggplot2)
+```
+
+### Loading Data
+```{r}
+activityData <- read.csv("repdata_data_activity/activity.csv")
+```
+
+
+### Basic EDA of the data
+```{r}
+head(activityData)
+```
+
+```{r}
+str(activityData)
+```
+```{r}
+summary(activityData)
+```
+
+There are **2304** missing values in the dataset.
+
+### Number of Steps taken per day
+
+```{r}
+stepsPerDay <- activityData %>%
+                group_by(date) %>%
+                summarise(totalSteps = sum(steps,na.rm = TRUE))
+
+ggplot(stepsPerDay,aes(x = totalSteps)) +
+  geom_histogram()
+```
+
+```{r}
+mean(stepsPerDay$totalSteps)
+median(stepsPerDay$totalSteps)
+```
+
+Mean of Steps taken per Day : **`r mean(stepsPerDay$totalSteps)`**
+Median of Steps taken per Day : **`r median(stepsPerDay$totalSteps)`**
+
+### Average Daily activity pattern
+```{r}
+stepsPerInterval <- activityData %>%
+                      group_by(interval) %>%
+                      summarise(avgSteps = mean(steps,na.rm = TRUE))
+
+ggplot(stepsPerInterval,aes(x = interval,y=avgSteps)) +
+  geom_line()
+```
+
+```{r}
+stepsPerInterval[which.max(stepsPerInterval$avgSteps),1]
+```
+
+835 is the 5-minute interval where we see the highest average number of steps taken each day.
+
+
+### Number of Missing Values
+```{r}
+sum(is.na.data.frame(activityData))
+```
+
+There are total of **2304** missing values in the data.
+
+
+Before imputing the missing values let us check the pattern of missing values for each day:
+```{r}
+activityData %>%
+  group_by(date) %>%
+  summarise(missingValues = sum(is.na(steps))) %>%
+  filter(missingValues > 0)
+```
+
+We can clearly see that data is missing for some days entirely rather than for some intervals. So, one way we can impute the data is by replacing the missing values with mean for the same interval.
+
+### Imputing Missing values
+
+```{r}
+replaceMissing <- function(df){
+for(i in 1:nrow(df)){
+  if(is.na(df[i,'steps'])){
+    df[i,'steps'] = floor(stepsPerInterval[which(stepsPerInterval$interval %in% df[i,3]),'avgSteps'])
+  }
+}
+  return(df)
+}
+```
+
+
+
+```{r}
+newData <- replaceMissing(activityData)
+sum(is.na.data.frame(newData)) ## Checking Missing Values
+```
+
+
+### Reporting New values and plots
+
+
+```{r}
+stepsPerDayNew <- newData %>%
+                group_by(date) %>%
+                summarise(totalSteps = sum(steps))
+
+ggplot(stepsPerDayNew,aes(x = totalSteps)) +
+  geom_histogram()
+```
+
+
+```{r}
+mean(stepsPerDayNew$totalSteps)
+median(stepsPerDayNew$totalSteps)
+```
+
+
+- The distribution of steps has now become unimodal after imputing the missing values. As expected, the earlier peak at 0 has disappeared.
+- The mean and median have also gone up.
+
+### Difference between activity pattern in Weekdays and Weekends
+```{r}
+newData$date = as.Date(newData$date)
+newData$dayType = ifelse(weekdays(newData$date) %in% c("Saturday","Sunday"),"Weekend","Weekday")
+newData$dayType = as.factor(newData$dayType)
+```
+
+
+```{r}
+stepsPerIntervalNew <- newData %>%
+                      group_by(interval,dayType) %>%
+                      summarise(avgSteps = mean(steps))
+
+ggplot(stepsPerIntervalNew,aes(x = interval,y=avgSteps)) +
+  geom_line() +
+  facet_wrap(~dayType)
+```
+
+
+
+
+
